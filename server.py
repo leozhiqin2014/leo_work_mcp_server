@@ -48,7 +48,7 @@ def create_mcp_server() -> FastMCP:
     """创建并配置 MCP 服务器实例"""
     # 从环境变量读取 JWT 配置
     jwt_enabled = os.getenv("MCP_JWT_ENABLED", "true").lower() == "true"
-    jwt_issuer = os.getenv("MCP_ISSUER", "leo-mcp-server")
+    jwt_issuer = os.getenv("MCP_ISSUER", "leo-work-mcp-server")
     jwt_audience = os.getenv("MCP_AUDIENCE", "mcp-clients")
 
     auth = None

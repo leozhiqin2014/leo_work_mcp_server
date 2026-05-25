@@ -22,8 +22,16 @@ def generate_keys() -> RSAKeyPair:
     print("正在生成 RSA 2048 位密钥对...")
     key_pair = RSAKeyPair.generate()
 
-    key_pair.save_private("keys/private.pem")
-    key_pair.save_public("keys/public.pem")
+    private_pem = _to_text(getattr(key_pair, "private_key", None))
+    public_pem = _to_text(getattr(key_pair, "public_key", None))
+
+    if not private_pem or not public_pem:
+        raise RuntimeError("无法从 RSAKeyPair 获取 PEM 内容，请检查 fastmcp 版本")
+
+    with open("keys/private.pem", "w", encoding="utf-8") as f:
+        f.write(private_pem)
+    with open("keys/public.pem", "w", encoding="utf-8") as f:
+        f.write(public_pem)
 
     # 在类 Unix 系统上设置权限
     if os.name != "nt":
@@ -37,16 +45,35 @@ def generate_keys() -> RSAKeyPair:
     return key_pair
 
 
+def _to_text(value) -> str:
+    """将 SecretStr / str / bytes 统一转为文本"""
+    if value is None:
+        return ""
+    # pydantic SecretStr
+    get_secret = getattr(value, "get_secret_value", None)
+    if callable(get_secret):
+        value = get_secret()
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return str(value)
+
+
 def create_token(key_pair: RSAKeyPair, expires_days: int = 365) -> str:
-    """使用私钥签发 JWT Token"""
-    token = key_pair.create_token(
+    """使用私钥签发 JWT Token，兼容不同 fastmcp 版本的参数名"""
+    common_kwargs = dict(
         subject="mcp-client",
-        issuer="leo-mcp-server",
+        issuer="leo-work-mcp-server",
         audience="mcp-clients",
         scopes=["tools:read", "tools:write", "resources:read"],
-        expires_delta=timedelta(days=expires_days),
     )
-    return token
+    expires_seconds = expires_days * 24 * 3600
+    # 新版 fastmcp 使用 expires_in_seconds
+    try:
+        return key_pair.create_token(expires_in_seconds=expires_seconds, **common_kwargs)
+    except TypeError:
+        pass
+    # 旧版 fastmcp 使用 expires_delta
+    return key_pair.create_token(expires_delta=timedelta(days=expires_days), **common_kwargs)
 
 
 def main() -> None:
