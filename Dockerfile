@@ -39,6 +39,6 @@ RUN chown -R mcpuser:mcpuser keys/ 2>/dev/null || true
 # 切换到非 root 用户运行
 USER mcpuser
 
-EXPOSE 9001
+EXPOSE 9100
 
 CMD ["python", "server.py"]

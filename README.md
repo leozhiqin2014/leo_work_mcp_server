@@ -1,7 +1,7 @@
 Leo MCP Server 部署与使用指南
 ================================
 
-基于 FastMCP 的 HTTP MCP 服务器，提供家庭成员健康记录与上下文记录的管理工具，使用 MySQL 持久化、可选腾讯云 COS 存储图片/文件，并通过 Bearer JWT (RSA) 进行鉴权。
+基于 FastMCP 的 HTTP MCP 服务器，提供家庭成员上下文记录的管理工具，使用 MySQL 持久化、可选腾讯云 COS 存储图片/文件，并通过 Bearer JWT (RSA) 进行鉴权。
 
 ## 项目结构
 
@@ -13,11 +13,9 @@ leo_work_mcp_server/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── tools/                    # MCP 工具实现
-│   ├── health.py             # 健康记录工具
 │   └── member_context.py     # 成员上下文工具
 ├── dao/                      # 数据访问层（PyMySQL）
 │   ├── db.py                 # 数据库连接配置（环境变量驱动）
-│   ├── health_dao.py
 │   ├── member_context_dao.py
 │   ├── member_info_dao.py
 │   ├── context_category_dao.py
@@ -51,7 +49,7 @@ leo_work_mcp_server/
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MCP_HOST` | `0.0.0.0` | 监听地址 |
-| `MCP_PORT` | `9001` | 监听端口 |
+| `MCP_PORT` | `9100` | 监听端口（与 `leo_mcp_server` 同机部署时已避开其默认 8000） |
 | `MCP_JWT_ENABLED` | `true` | 是否启用 JWT 鉴权 |
 | `MCP_ISSUER` | `leo-mcp-server` | JWT issuer，需与签发端一致 |
 | `MCP_AUDIENCE` | `mcp-clients` | JWT audience，需与签发端一致 |
@@ -65,7 +63,7 @@ leo_work_mcp_server/
 | `DB_PORT` | `3306` |
 | `DB_USER` | `root` |
 | `DB_PASSWORD` | 空（必须通过环境变量注入） |
-| `DB_NAME` | `personal` |
+| `DB_NAME` | `work_data` |
 
 ### 腾讯云 COS（图片/文件预签名下载链接，可选）
 | 变量 | 默认值 |
@@ -81,15 +79,15 @@ leo_work_mcp_server/
 
 ## 二、初始化数据库
 
-按顺序执行 `sql/` 目录下的脚本（默认数据库名 `personal`）：
+按顺序执行 `sql/` 目录下的脚本（默认数据库名 `work_data`）：
 
 ```bash
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p personal < sql/member_info.sql
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p personal < sql/member_context.sql
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p personal < sql/context_category.sql
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p personal < sql/context_category_data.sql
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p personal < sql/tag.sql
-mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p personal < sql/tag_data.sql
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p work_data < sql/member_info.sql
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p work_data < sql/member_context.sql
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p work_data < sql/context_category.sql
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p work_data < sql/context_category_data.sql
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p work_data < sql/tag.sql
+mysql -h $DB_HOST -P $DB_PORT -u $DB_USER -p work_data < sql/tag_data.sql
 ```
 
 ---
@@ -141,21 +139,21 @@ sudo journalctl -u leo-mcp -f
 
 ### 方式 C：Docker Compose
 
-`docker-compose.yml` 中默认将容器内 `8000` 端口暴露到宿主，并设置 `MCP_PORT=8000`。
+`docker-compose.yml` 中默认将容器内 `9100` 端口暴露到宿主，并设置 `MCP_PORT=9100`，容器名 `leo-work-mcp-server`，与同机部署的 `leo_mcp_server`（默认 8000）互不冲突。
 
 ```bash
 python generate_keys.py        # 先生成密钥
 docker compose up -d
-docker logs -f leo-mcp-server
+docker logs -f leo-work-mcp-server
 ```
 
-> 注意：Dockerfile 中 `EXPOSE 9001` 仅作声明，实际端口以 `MCP_PORT` 与 `docker-compose.yml` 端口映射为准。如需保持与默认运行（9001）一致，可同步修改 compose 中的端口。
+> 注意：Dockerfile 中 `EXPOSE 9100` 仅作声明，实际端口以 `MCP_PORT` 与 `docker-compose.yml` 端口映射为准。
 
 ### 防火墙
 
 ```bash
-sudo ufw allow 9001/tcp                                # ufw
-sudo firewall-cmd --permanent --add-port=9001/tcp      # firewalld
+sudo ufw allow 9100/tcp                                # ufw
+sudo firewall-cmd --permanent --add-port=9100/tcp      # firewalld
 sudo firewall-cmd --reload
 ```
 
@@ -170,8 +168,8 @@ sudo firewall-cmd --reload
 ```json
 {
   "mcpServers": {
-    "leo-mcp": {
-      "url": "http://your-server-ip:9001/mcp/",
+    "leo-work-mcp": {
+      "url": "http://your-server-ip:9100/mcp/",
       "transport": "http",
       "headers": {
         "Authorization": "Bearer <client_config.json 中的 token>"
@@ -186,13 +184,6 @@ sudo firewall-cmd --reload
 ---
 
 ## 六、内置 MCP 工具
-
-### 健康记录（`tools/health.py`）
-
-| 工具 | 说明 |
-|------|------|
-| `query_health_records` | 按昵称 + 日期范围查询健康记录（身高/体重/BMI/体脂率） |
-| `add_health_record` | 新增健康记录；`member_name`/`height` 未传时自动从该昵称最近一条记录补全；BMI 未传时按 `weight / (height/100)^2` 计算；`record_date` 未传时取上海时区当天 |
 
 ### 成员上下文（`tools/member_context.py`）
 

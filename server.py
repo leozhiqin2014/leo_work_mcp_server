@@ -86,10 +86,6 @@ def create_mcp_server() -> FastMCP:
 
 def register_tools(mcp: FastMCP) -> None:
     """注册工具和资源"""
-    # 注册健康记录工具
-    from tools.health import register_tools as register_health_tools
-    register_health_tools(mcp)
-
     # 注册成员上下文工具
     from tools.member_context import register_tools as register_member_context_tools
     register_member_context_tools(mcp)
@@ -143,7 +139,7 @@ def register_tools(mcp: FastMCP) -> None:
                     "description": tool.description if hasattr(tool, "description") else "",
                 })
         except:
-            tools_info = [{"name": "calculate"}, {"name": "list_tools"}, {"name": "query_health_records"}]
+            tools_info = [{"name": "calculate"}, {"name": "list_tools"}]
         return tools_info
 
 

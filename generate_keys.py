@@ -58,7 +58,7 @@ def main() -> None:
 
     # 3. 生成客户端配置文件
     config = {
-        "server_url": "http://YOUR_SERVER_IP:8000/sse",
+        "server_url": "http://YOUR_SERVER_IP:9100/sse",
         "transport": "sse",
         "headers": {"Authorization": f"Bearer {token}"},
         "token": token,
@@ -74,8 +74,8 @@ def main() -> None:
     env_content = (
         "# FastMCP 服务器环境变量\n"
         "MCP_HOST=0.0.0.0\n"
-        "MCP_PORT=8000\n"
-        "MCP_ISSUER=leo-mcp-server\n"
+        "MCP_PORT=9100\n"
+        "MCP_ISSUER=leo-work-mcp-server\n"
         "MCP_AUDIENCE=mcp-clients\n"
         "MCP_PUBLIC_KEY_PATH=keys/public.pem\n"
         "MCP_BASE_DIR=/var/mcp/data\n"
