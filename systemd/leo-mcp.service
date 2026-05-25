@@ -1,0 +1,19 @@
+[Unit]
+Description=Leo FastMCP HTTP Server
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=3
+User=mcpuser
+WorkingDirectory=/opt/leo-mcp-server
+EnvironmentFile=/opt/leo-mcp-server/.env
+ExecStart=/opt/leo-mcp-server/venv/bin/python server.py
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=leo-mcp
+
+[Install]
+WantedBy=multi-user.target
