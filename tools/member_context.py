@@ -11,6 +11,7 @@ from dao import context_category_dao
 from dao import tag_dao
 from models.member_context import ContentFormat, ContextStatus, ContextPermission
 from utils.cos_helper import get_presigned_url
+from utils import vector_index
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,11 @@ def register_tools(mcp) -> None:
                 if not success:
                     return {"error": f"未找到 ID={record_id} 的记录或无字段需要更新"}
 
+                # 同步更新向量索引（失败不影响主流程）
+                latest = member_context_dao.get_context_by_id(record_id)
+                if latest:
+                    vector_index.upsert_record(record_id, latest)
+
                 return {"success": True, "id": record_id, "updated_fields": list(update_fields.keys())}
 
             # ── 新增模式 ──────────────────────────────────────────────
@@ -187,6 +193,20 @@ def register_tools(mcp) -> None:
                 ] if p
             )
 
+            # 写入向量索引（失败不影响主流程）
+            vector_index.upsert_record(new_id, {
+                "member_nickname": member_nickname,
+                "member_name": member_name,
+                "context_type_level_one": context_type_level_one,
+                "context_type_level_two": context_type_level_two,
+                "context_type_level_three": context_type_level_three or "",
+                "context_type_level_four": context_type_level_four or "",
+                "content": content,
+                "remark": remark or "",
+                "tags": tags_str,
+                "file_name": file_name or "",
+            })
+
             return {
                 "success": True,
                 "id": new_id,
@@ -209,6 +229,7 @@ def register_tools(mcp) -> None:
         context_type_level_two: Optional[str] = None,
         context_type_level_three: Optional[str] = None,
         context_type_level_four: Optional[str] = None,
+        keyword: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
     ):
@@ -221,10 +242,11 @@ def register_tools(mcp) -> None:
             record_id: 记录ID（选填，传入时忽略其他条件，直接按ID查询）
             member_nickname: 成员昵称（选填）
             member_name: 成员名称（选填）
-            context_type_level_one: 1级分类过滤，如"学习"、"健康"（选填）
-            context_type_level_two: 2级分类过滤（选填）
-            context_type_level_three: 3级分类过滤（选填）
+            context_type_level_one: 1级分类过滤，如"学习"、"健康"（条件查询时必填）
+            context_type_level_two: 2级分类过滤（条件查询时必填）
+            context_type_level_three: 3级分类过滤（条件查询时必填）
             context_type_level_four: 4级分类过滤（选填）
+            keyword: 关键词模糊匹配，命中 4级分类/备注/标签 任一即返回（选填）
             page: 页码，从1开始（默认1）
             page_size: 每页条数（默认20，最大100）
         """
@@ -239,6 +261,8 @@ def register_tools(mcp) -> None:
             # ── 条件查询 ───────────────────────────────────────────────
             if not member_nickname and not member_name:
                 return {"error": "请至少传入 record_id、member_nickname 或 member_name 之一"}
+            if not context_type_level_one or not context_type_level_two or not context_type_level_three:
+                return {"error": "条件查询必须同时传入 context_type_level_one/two/three（1/2/3级分类）"}
 
             result = member_context_dao.query_contexts(
                 member_nickname=member_nickname,
@@ -247,6 +271,7 @@ def register_tools(mcp) -> None:
                 context_type_level_two=context_type_level_two,
                 context_type_level_three=context_type_level_three,
                 context_type_level_four=context_type_level_four,
+                keyword=keyword,
                 page=page,
                 page_size=page_size,
             )

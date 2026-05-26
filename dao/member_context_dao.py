@@ -183,6 +183,7 @@ def query_contexts(
     status: ContextStatus = ContextStatus.NORMAL,
     start_time: str | None = None,
     end_time: str | None = None,
+    keyword: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> dict[str, Any]:
@@ -191,20 +192,27 @@ def query_contexts(
     Args:
         member_nickname: 成员昵称（与 member_name 至少传一个）
         member_name: 成员名称（与 member_nickname 至少传一个）
-        context_type_level_one: 1级分类过滤（可选）
-        context_type_level_two: 2级分类过滤（可选）
-        context_type_level_three: 3级分类过滤（可选）
+        context_type_level_one: 1级分类过滤（必填）
+        context_type_level_two: 2级分类过滤（必填）
+        context_type_level_three: 3级分类过滤（必填）
         context_type_level_four: 4级分类过滤（可选）
         content_format: 内容格式过滤，ContentFormat 枚举（可选）
         status: 记录状态过滤，默认仅返回正常状态
         start_time: 创建时间下限，格式 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS（可选）
         end_time: 创建时间上限，格式 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS（可选）
+        keyword: 关键词模糊匹配，命中 level_four/remark/tags 任一即返回（可选）
         page: 页码，从 1 开始（默认 1）
         page_size: 每页条数（默认 20，最大 100）
 
     Returns:
         包含 total、page、page_size、records 的字典
+
+    Raises:
+        ValueError: 未传入 1/2/3 级分类
     """
+    if not context_type_level_one or not context_type_level_two or not context_type_level_three:
+        raise ValueError("查询必须同时指定 context_type_level_one、context_type_level_two、context_type_level_three")
+
     page_size = min(page_size, 100)
     offset = (max(page, 1) - 1) * page_size
 
@@ -239,6 +247,14 @@ def query_contexts(
     if end_time:
         conditions.append("created_at <= %s")
         params.append(end_time)
+    if keyword:
+        kw = f"%{keyword}%"
+        conditions.append(
+            "(context_type_level_four LIKE %s"
+            + " OR remark LIKE %s"
+            + " OR tags LIKE %s)"
+        )
+        params.extend([kw, kw, kw])
 
     where_clause = " AND ".join(conditions)
 
